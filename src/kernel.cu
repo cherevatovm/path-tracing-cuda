@@ -4,74 +4,6 @@
 constexpr float PI = 3.14159265358979323846f;
 constexpr int MAX_BOUNCES = 100;
 
-__device__ bool intersectSphere(const Sphere& s, const Ray& r, float& t, Vec3& n) {
-    Vec3 op = r.orig - s.center;
-    float b = 2.f * op.dot(r.dir);
-    float c = op.dot(op) - s.radius * s.radius;
-    float discr = b * b - 4.f * c;
-    if (discr < 0.f) return false;
-
-    discr = sqrtf(discr);
-    float t0 = (-b - discr) * 0.5f;
-    float t1 = (-b + discr) * 0.5f;
-
-    t = (t0 > EPS) ? t0 : ((t1 > EPS) ? t1 : 0.f);
-    if (t <= 0.f) return false;
-
-    Vec3 hp = r.orig + r.dir * t;
-    n = (hp - s.center).norm();
-    return true;
-}
-
-__device__ bool intersectTriangle(const Triangle& tri, const Ray& r, float& t, Vec3& n) {
-    Vec3 e1 = tri.v1 - tri.v0;
-    Vec3 e2 = tri.v2 - tri.v0;
-    Vec3 pvec = r.dir.cross(e2);
-    float det = e1.dot(pvec);
-
-    if (fabsf(det) < EPS) return false;
-    float invDet = 1.f / det;
-
-    Vec3 tvec = r.orig - tri.v0;
-    float u = tvec.dot(pvec) * invDet;
-    if (u < 0.f || u > 1.f) return false;
-
-    Vec3 qvec = tvec.cross(e1);
-    float v = r.dir.dot(qvec) * invDet;
-    if (v < 0.f || u + v > 1.f) return false;
-
-    t = e2.dot(qvec) * invDet;
-    if (t <= EPS) return false;
-
-    n = tri.normal;
-    return true;
-}
-
-__device__ bool intersectScene(const Shape* shapes, int shapeCount, const Ray& r, Hit& hit) {
-    hit.t = 1e20f;
-    hit.id = -1;
-
-    bool found = false;
-    for (int i = 0; i < shapeCount; ++i) {
-        float t;
-        Vec3 n;
-        bool ok = false;
-
-        if (shapes[i].type == SHAPE_SPHERE)
-            ok = intersectSphere(shapes[i].sphere, r, t, n);
-        else
-            ok = intersectTriangle(shapes[i].tri, r, t, n);
-
-        if (ok && t < hit.t) {
-            hit.t = t;
-            hit.id = i;
-            hit.n = n;
-            found = true;
-        }
-    }
-    return found;
-}
-
 __device__ Vec3 sampleDiffuseHemisphere(const Vec3& nl, curandState* rng) {
     float r1 = 2.f * PI * curand_uniform(rng);
     float r2 = curand_uniform(rng);
@@ -112,6 +44,7 @@ __device__ Vec3 sampleSphereSolidAngle(
 extern "C" __global__
 void renderKernel(
     Vec3* framebuffer,
+    const BVHNode* bvhNodes,
     const Shape* shapes,
     int shapeCount,
     int width,
@@ -154,7 +87,7 @@ void renderKernel(
 
         for (int depth = 0; depth < MAX_BOUNCES; ++depth) {
             Hit hit;
-            if (!intersectScene(shapes, shapeCount, ray, hit)) {
+            if (!intersectScene(bvhNodes, shapes, shapeCount, ray, hit)) {
                 break;
             }
 
@@ -193,7 +126,7 @@ void renderKernel(
 
                     Ray shadowRay(hit_point + nl * EPS, samp_dir);
                     Hit shadowHit;
-                    if (intersectScene(shapes, shapeCount, shadowRay, shadowHit) && shadowHit.id == i) {
+                    if (intersectScene(bvhNodes, shapes, shapeCount, shadowRay, shadowHit) && shadowHit.id == i) {
                         float cosTheta = fmaxf(0.f, samp_dir.dot(nl));
                         direct += obj.color.mult(lightObj.emis) * (cosTheta * omega * (1.f / PI));
                     }

@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include "bvh.cuh"
 #include "kernel.cuh"
 
 #define CUDA_CHECK(call) do { \
@@ -126,17 +127,26 @@ int main(int argc, char* argv[]) {
 
     shapes.push_back(makeSphere(Vec3(50, 81.6f - 15.5f, 90), 5.5f, Vec3(40, 40, 40), Vec3(0), DIFF));
 
+    std::vector<BVHNode> bvhNodes;
+    BVHBuilder::build(shapes, bvhNodes, 4);
+
+    printf("BVH built: %zu nodes for %zu primitives\n", bvhNodes.size(), shapes.size());
+
     Vec3* d_fb = nullptr;
     Shape* d_shapes = nullptr;
+    BVHNode* d_bvhNodes = nullptr;
 
     CUDA_CHECK(cudaMalloc(&d_fb, width * height * sizeof(Vec3)));
     CUDA_CHECK(cudaMalloc(&d_shapes, shapes.size() * sizeof(Shape)));
+    CUDA_CHECK(cudaMalloc(&d_bvhNodes, bvhNodes.size() * sizeof(BVHNode)));
+
     CUDA_CHECK(cudaMemcpy(d_shapes, shapes.data(), shapes.size() * sizeof(Shape), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d_bvhNodes, bvhNodes.data(), bvhNodes.size() * sizeof(BVHNode), cudaMemcpyHostToDevice));
 
     dim3 block(8, 8);
     dim3 grid((width + block.x - 1) / block.x, (height + block.y - 1) / block.y);
 
-    renderKernel<<<grid, block>>>(d_fb, d_shapes, (int)shapes.size(), width, height, spp);
+    renderKernel<<<grid, block>>>(d_fb, d_bvhNodes, d_shapes, (int)shapes.size(), width, height, spp);
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -154,6 +164,7 @@ int main(int argc, char* argv[]) {
 
     CUDA_CHECK(cudaFree(d_fb));
     CUDA_CHECK(cudaFree(d_shapes));
+    CUDA_CHECK(cudaFree(d_bvhNodes));
 
     return 0;
 }

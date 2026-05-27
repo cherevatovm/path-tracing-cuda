@@ -37,6 +37,9 @@ struct Vec3 {
     }
 
     __host__ __device__ Vec3 mult(const Vec3& b) const { return Vec3(x * b.x, y * b.y, z * b.z); }
+
+    __host__ __device__ float operator[](int i) const { return (&x)[i]; }
+    __host__ __device__ float& operator[](int i) { return (&x)[i]; }
 };
 
 __host__ __device__ inline Vec3 operator*(float a, const Vec3& b) { return b * a; }
