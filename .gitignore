@@ -1,0 +1,48 @@
+# Build directory
+build/
+
+# CUDA intermediate files
+*.fatbin
+*.fatbin.c
+*.cubin
+*.ptx
+*.cudafe1.c
+*.cudafe1.cpp
+*.cudafe1.gpu
+*.cudafe1.stub.c
+*.module_id
+*.reg.c
+*.cpp1.ii
+*.cpp4.ii
+
+# Compiled object files
+*.o
+*.obj
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+CMakeScratch/
+cmake.check_cache
+CTestTestfile.cmake
+compile_commands.json
+
+# Executable
+path_tracing_cuda
+
+# Output images
+*.png
+*.jpg
+*.bmp
+*.hdr
+*.exr
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
