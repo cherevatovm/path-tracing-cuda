@@ -42,11 +42,14 @@ __device__ Vec3 sampleSphereSolidAngle(
 }
 
 extern "C" __global__
+__launch_bounds__(256, 2)
 void renderKernel(
     Vec3* framebuffer,
     const BVHNode* bvhNodes,
     const Shape* shapes,
     int shapeCount,
+    const int* lightIndices,
+    int lightCount,
     int width,
     int height,
     int spp
@@ -113,12 +116,10 @@ void renderKernel(
             if (obj.refl == DIFF) {
                 Vec3 direct(0.f);
 
-                for (int i = 0; i < shapeCount; ++i) {
+                for (int li = 0; li < lightCount; ++li) {
+                    int i = lightIndices[li];
                     const Shape& lightObj = shapes[i];
-                    if (lightObj.emis.x <= 0.f && lightObj.emis.y <= 0.f && lightObj.emis.z <= 0.f)
-                        continue;
-                    if (lightObj.type != SHAPE_SPHERE)
-                        continue;
+                    if (lightObj.type != SHAPE_SPHERE) continue;
 
                     const Sphere& light = lightObj.sphere;
                     float omega = 0.f;

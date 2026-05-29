@@ -121,32 +121,42 @@ int main(int argc, char* argv[]) {
 
     std::vector<Shape> shapes;
     addBox(shapes);
-
     shapes.push_back(makeSphere(Vec3(73, 16.5f, 95), 16.5f, Vec3(0), Vec3(1, 1, 1), REFR));
     addCube(shapes, Vec3(33, 15, 65), 15.f, float(M_PI) / 4.f, Vec3(0), Vec3(0.65f, 0.65f, 0.65f), SPEC);
-
     shapes.push_back(makeSphere(Vec3(50, 81.6f - 15.5f, 90), 5.5f, Vec3(40, 40, 40), Vec3(0), DIFF));
 
     std::vector<BVHNode> bvhNodes;
     BVHBuilder::build(shapes, bvhNodes, 4);
-
     printf("BVH built: %zu nodes for %zu primitives\n", bvhNodes.size(), shapes.size());
+
+    // need to gather light indices for direct lighting checks
+    std::vector<int> lightIdx;
+    for (int i = 0; i < (int)shapes.size(); ++i) {
+        const Vec3& e = shapes[i].emis;
+        if (e.x > 0.f || e.y > 0.f || e.z > 0.f)
+            lightIdx.push_back(i);
+    }
 
     Vec3* d_fb = nullptr;
     Shape* d_shapes = nullptr;
     BVHNode* d_bvhNodes = nullptr;
+    int* d_lightIndices = nullptr;
 
     CUDA_CHECK(cudaMalloc(&d_fb, width * height * sizeof(Vec3)));
     CUDA_CHECK(cudaMalloc(&d_shapes, shapes.size() * sizeof(Shape)));
     CUDA_CHECK(cudaMalloc(&d_bvhNodes, bvhNodes.size() * sizeof(BVHNode)));
+    CUDA_CHECK(cudaMalloc(&d_lightIndices, lightIdx.size() * sizeof(int)));
 
     CUDA_CHECK(cudaMemcpy(d_shapes, shapes.data(), shapes.size() * sizeof(Shape), cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(d_bvhNodes, bvhNodes.data(), bvhNodes.size() * sizeof(BVHNode), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d_lightIndices, lightIdx.data(), lightIdx.size() * sizeof(int), cudaMemcpyHostToDevice));
 
-    dim3 block(8, 8);
+    dim3 block(16, 16);
     dim3 grid((width + block.x - 1) / block.x, (height + block.y - 1) / block.y);
 
-    renderKernel<<<grid, block>>>(d_fb, d_bvhNodes, d_shapes, (int)shapes.size(), width, height, spp);
+    renderKernel<<<grid, block>>>(d_fb, d_bvhNodes, d_shapes, (int)shapes.size(),
+                                  d_lightIndices, (int)lightIdx.size(),
+                                  width, height, spp);
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -165,6 +175,7 @@ int main(int argc, char* argv[]) {
     CUDA_CHECK(cudaFree(d_fb));
     CUDA_CHECK(cudaFree(d_shapes));
     CUDA_CHECK(cudaFree(d_bvhNodes));
+    CUDA_CHECK(cudaFree(d_lightIndices));
 
     return 0;
 }
