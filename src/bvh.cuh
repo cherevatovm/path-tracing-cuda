@@ -170,7 +170,6 @@ __device__ inline bool intersectBVH(
 ) {
     bool found = false;
     hit.t = 1e20f;
-
     Vec3 invDir(1.f / r.dir.x, 1.f / r.dir.y, 1.f / r.dir.z);
 
     int stack[64];
@@ -180,8 +179,7 @@ __device__ inline bool intersectBVH(
     while (true) {
         const BVHNode& node = nodes[nodeIdx];
 
-        float tMin;
-        if (!node.bounds.intersect(r, invDir, hit.t, tMin)) {
+        if (!node.bounds.intersect(r, invDir, hit.t)) {
             if (stackPtr == 0) break;
             nodeIdx = stack[--stackPtr];
             continue;
@@ -263,6 +261,7 @@ __device__ inline bool intersectSphereDevice(
 
     Vec3 hp = r.orig + r.dir * t;
     n = (hp - sp.center).norm();
+    
     return true;
 }
 
@@ -289,6 +288,14 @@ __device__ inline bool intersectTriangleDevice(
     t = e2.dot(qvec) * invDet;
     if (t <= EPS) return false;
 
-    n = tri.normal;
+    // interpolate vertex normals if available to achieve smooth shading
+    float vnLenSq = tri.vn0.dot(tri.vn0);
+    if (vnLenSq > 0.f) {
+        float w = 1.f - u - v;
+        n = (tri.vn0 * w + tri.vn1 * u + tri.vn2 * v).norm();
+    } else {
+        n = tri.normal;
+    }
+
     return true;
 }

@@ -16,6 +16,7 @@ struct Sphere {
 struct Triangle {
     Vec3 v0, v1, v2;
     Vec3 normal;
+    Vec3 vn0, vn1, vn2;
 };
 
 struct Shape {

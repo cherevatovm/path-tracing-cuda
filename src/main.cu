@@ -10,6 +10,7 @@
 
 #include "bvh.cuh"
 #include "kernel.cuh"
+#include "mesh.cuh"
 
 #define CUDA_CHECK(call) do { \
     cudaError_t err = (call); \
@@ -42,6 +43,7 @@ static Shape makeTriangle(const Vec3& a, const Vec3& b, const Vec3& c, const Vec
     t.tri.v1 = b;
     t.tri.v2 = c;
     t.tri.normal = (b - a).cross(c - a).norm();
+    t.tri.vn0 = t.tri.vn1 = t.tri.vn2 = Vec3(0.f);
     t.emis = emis;
     t.color = color;
     t.refl = refl;
@@ -121,9 +123,25 @@ int main(int argc, char* argv[]) {
 
     std::vector<Shape> shapes;
     addBox(shapes);
+
     shapes.push_back(makeSphere(Vec3(73, 16.5f, 95), 16.5f, Vec3(0), Vec3(1, 1, 1), REFR));
-    addCube(shapes, Vec3(33, 15, 65), 15.f, float(M_PI) / 4.f, Vec3(0), Vec3(0.65f, 0.65f, 0.65f), SPEC);
-    shapes.push_back(makeSphere(Vec3(50, 81.6f - 15.5f, 90), 5.5f, Vec3(40, 40, 40), Vec3(0), DIFF));
+
+    {
+        Mesh objMesh(Vec3(0.65f, 0.65f, 0.65f), Vec3(0.f), SPEC);
+        if (objMesh.loadOBJ("3d_models/skull.obj") == 0) {
+            objMesh.scale(5.f, 5.f, 5.f);
+            objMesh.rotateAroundCenter(30.f, 1);
+            objMesh.translate(Vec3(30.f, 25.f, 80.f));
+            objMesh.toShapes(shapes);
+            printf("Loaded model: %zu triangles\n", objMesh.faceVerts.size() / 3);
+        } else {
+            printf("Model not found, using cube fallback\n");
+            addCube(shapes, Vec3(33, 15, 65), 15.f, float(M_PI) / 4.f, Vec3(0), Vec3(0.65f, 0.65f, 0.65f), SPEC);
+        }
+    }
+
+    shapes.push_back(makeSphere(Vec3(50, 81.6f - 15.5f, 90), 5.5f, Vec3(20, 20, 20), Vec3(0), DIFF));
+
 
     std::vector<BVHNode> bvhNodes;
     BVHBuilder::build(shapes, bvhNodes, 4);
